@@ -5,9 +5,13 @@
  *   <script>window.TS_API_URL = 'https://api.yourinstitute.in';</script>
  *   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
  *
- * Page elements used: #registration-form (inputs name, phone, email, classLevel,
- * mode, city), #register-btn, #pay-btn, #form-message, and optionally the
- * step indicators #step-1 / #step-2.
+ * Page elements used: #registration-form (inputs name, phone, email, studentType,
+ * city), #register-btn, #pay-btn, #form-message, and optionally the step
+ * indicators #step-1 / #step-2.
+ *
+ * Concessions: old students, repeaters and optional students are registered but
+ * not sent to payment; the team confirms their concession fee first (they show
+ * up in the admin panel with their category).
  */
 (function () {
   var API = (window.TS_API_URL || '').replace(/\/$/, '') + '/api';
@@ -55,8 +59,7 @@
     if ((values.name || '').trim().length < 2) return ['name', 'Please enter your full name.'];
     if (!/^[6-9]\d{9}$/.test(phone)) return ['phone', 'Please enter a valid 10-digit mobile number.'];
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test((values.email || '').trim())) return ['email', 'Please enter a valid email address.'];
-    if (!values.classLevel) return ['classLevel', 'Please select your class.'];
-    if (!values.mode) return ['mode', 'Please select a mode.'];
+    if (!values.studentType) return ['studentType', 'Please select your category.'];
     return null;
   }
 
@@ -89,8 +92,13 @@
         studentName = values.name.trim().split(/\s+/)[0];
         form.querySelectorAll('input, select').forEach(function (el) { el.disabled = true; });
         registerBtn.hidden = true;
-        payBtn.hidden = false;
         setSteps('done', 'active');
+        if (values.studentType !== 'new') {
+          show('Thanks, ' + studentName + '! You are registered. As an eligible student you get a concession: ' +
+            'our team will contact you on ' + values.phone.trim() + ' to confirm your fee and share the payment link.', 'success');
+          return;
+        }
+        payBtn.hidden = false;
         show('Thanks, ' + studentName + '! Your details are saved. Complete payment to confirm your seat.', 'success');
         payBtn.focus();
       })
@@ -98,7 +106,7 @@
         markInvalid(err.field);
         show(err.message, 'error');
         registerBtn.disabled = false;
-        registerBtn.textContent = 'Submit registration';
+        registerBtn.textContent = 'Register now';
       });
   });
 
@@ -119,7 +127,7 @@
           amount: order.amount,
           currency: order.currency,
           name: order.courseName,
-          description: 'Test series course fee',
+          description: 'Programme fee (incl. GST)',
           prefill: order.prefill,
           theme: { color: '#4A2BE0' },
           handler: function (response) {

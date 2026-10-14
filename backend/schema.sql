@@ -14,8 +14,8 @@ CREATE TABLE IF NOT EXISTS registrations (
   name         VARCHAR(120) NOT NULL,
   phone        VARCHAR(15)  NOT NULL,
   email        VARCHAR(190) NOT NULL,
-  class_level  ENUM('11','12','dropper') NOT NULL,
-  mode         ENUM('online','offline')  NOT NULL,
+  -- new = full fee online; the others are concession categories confirmed by the team
+  student_type ENUM('new','old_student','repeater','optional_student') NOT NULL,
   city         VARCHAR(100) NULL,
   status       ENUM('pending','paid','failed') NOT NULL DEFAULT 'pending',
   amount_paise INT UNSIGNED NOT NULL,
@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS registrations (
   created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_reg_status (status),
+  INDEX idx_reg_type (student_type),
   INDEX idx_reg_created (created_at),
   INDEX idx_reg_email (email),
   INDEX idx_reg_phone (phone)

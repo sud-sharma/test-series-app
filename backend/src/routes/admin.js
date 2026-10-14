@@ -47,14 +47,13 @@ router.get('/stats', async (req, res, next) => {
               SUM(status = 'pending') AS pending,
               SUM(status = 'failed')  AS failed,
               COALESCE(SUM(CASE WHEN status = 'paid' THEN amount_paise END), 0) AS revenuePaise,
-              SUM(created_at >= UTC_TIMESTAMP() - INTERVAL 1 DAY) AS last24h
+              SUM(created_at >= UTC_TIMESTAMP() - INTERVAL 1 DAY) AS last24h,
+              SUM(status <> 'paid' AND student_type <> 'new') AS concessionPending
          FROM registrations`
     );
-    const [byMode] = await pool.query(
-      `SELECT mode, COUNT(*) AS count FROM registrations WHERE status = 'paid' GROUP BY mode`
-    );
-    const [byClass] = await pool.query(
-      `SELECT class_level AS classLevel, COUNT(*) AS count FROM registrations WHERE status = 'paid' GROUP BY class_level`
+    const [byType] = await pool.query(
+      `SELECT student_type AS studentType, COUNT(*) AS count, SUM(status = 'paid') AS paid
+         FROM registrations GROUP BY student_type`
     );
     const [daily] = await pool.query(
       `SELECT DATE(created_at) AS day, COUNT(*) AS registrations, SUM(status = 'paid') AS paid
@@ -71,8 +70,8 @@ router.get('/stats', async (req, res, next) => {
       failed: num(totals.failed),
       revenuePaise: num(totals.revenuePaise),
       last24h: num(totals.last24h),
-      byMode: byMode.map((r) => ({ mode: r.mode, count: num(r.count) })),
-      byClass: byClass.map((r) => ({ classLevel: r.classLevel, count: num(r.count) })),
+      concessionPending: num(totals.concessionPending),
+      byType: byType.map((r) => ({ studentType: r.studentType, count: num(r.count), paid: num(r.paid) })),
       daily: daily.map((r) => ({ day: r.day, registrations: num(r.registrations), paid: num(r.paid) })),
     });
   } catch (err) {
@@ -83,8 +82,8 @@ router.get('/stats', async (req, res, next) => {
 const listQuery = z.object({
   search: z.string().trim().max(100).optional(),
   status: z.enum(['pending', 'paid', 'failed']).optional().or(z.literal('')),
-  mode: z.enum(['online', 'offline']).optional().or(z.literal('')),
-  classLevel: z.enum(['11', '12', 'dropper']).optional().or(z.literal('')),
+  // 'concession' = every category except new students
+  studentType: z.enum(['new', 'old_student', 'repeater', 'optional_student', 'concession']).optional().or(z.literal('')),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(200).default(20),
 });
@@ -98,12 +97,12 @@ function buildFilters(q) {
     params.push(like, like, like, like);
   }
   if (q.status) { where.push('r.status = ?'); params.push(q.status); }
-  if (q.mode) { where.push('r.mode = ?'); params.push(q.mode); }
-  if (q.classLevel) { where.push('r.class_level = ?'); params.push(q.classLevel); }
+  if (q.studentType === 'concession') where.push("r.student_type <> 'new'");
+  else if (q.studentType) { where.push('r.student_type = ?'); params.push(q.studentType); }
   return { sql: where.length ? `WHERE ${where.join(' AND ')}` : '', params };
 }
 
-const regColumns = `r.id, r.name, r.phone, r.email, r.class_level AS classLevel, r.mode, r.city,
+const regColumns = `r.id, r.name, r.phone, r.email, r.student_type AS studentType, r.city,
   r.status, r.amount_paise AS amountPaise, r.paid_at AS paidAt, r.created_at AS createdAt`;
 
 router.get('/registrations', validate(listQuery, 'query'), async (req, res, next) => {
@@ -139,11 +138,12 @@ router.get('/registrations/export.csv', validate(listQuery.omit({ page: true, li
          FROM registrations r ${sql} ORDER BY r.created_at DESC`,
       params
     );
-    const header = ['ID', 'Name', 'Phone', 'Email', 'Class', 'Mode', 'City', 'Status', 'Amount (INR)', 'Payment ID', 'Paid at', 'Registered at'];
+    const typeLabel = { new: 'New student', old_student: 'Old student', repeater: 'Repeater', optional_student: 'Optional student' };
+    const header = ['ID', 'Name', 'Phone', 'Email', 'Category', 'City', 'Status', 'Amount (INR)', 'Payment ID', 'Paid at', 'Registered at'];
     const lines = [header.join(',')];
     for (const r of rows) {
       lines.push(
-        [r.id, r.name, r.phone, r.email, r.classLevel, r.mode, r.city, r.status, (r.amountPaise / 100).toFixed(2), r.paymentId, r.paidAt, r.createdAt]
+        [r.id, r.name, r.phone, r.email, typeLabel[r.studentType] || r.studentType, r.city, r.status, (r.amountPaise / 100).toFixed(2), r.paymentId, r.paidAt, r.createdAt]
           .map(csvCell)
           .join(',')
       );

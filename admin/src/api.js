@@ -86,5 +86,10 @@ export const formatDate = (d) =>
       )
     : '—';
 
-export const classLabel = { 11: 'Class 11', 12: 'Class 12', dropper: 'Dropper' };
-export const modeLabel = { online: 'Online', offline: 'At centre' };
+export const typeLabel = {
+  new: 'New student',
+  old_student: 'Old student',
+  repeater: 'Repeater',
+  optional_student: 'Optional student',
+};
+export const isConcession = (studentType) => studentType && studentType !== 'new';

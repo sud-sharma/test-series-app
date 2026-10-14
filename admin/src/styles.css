@@ -81,9 +81,11 @@ input, select, button { font: inherit; }
 .stat-violet { background: var(--violet); border-color: var(--violet); color: #fff; }
 .stat-yellow { background: var(--yellow); border-color: var(--yellow); }
 .stat-coral { background: var(--coral-soft); border-color: #ffc6b8; color: var(--coral-ink); }
+.stat-link { text-decoration: none; color: var(--ink); border: 2px solid var(--violet); }
+.stat-link:hover { background: var(--violet-soft); }
 
 .barlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
-.barlist li { display: grid; grid-template-columns: 90px 1fr 40px; align-items: center; gap: 12px; }
+.barlist li { display: grid; grid-template-columns: 130px 1fr 40px; align-items: center; gap: 12px; }
 .barlist-track { height: 12px; background: var(--violet-soft); border-radius: 99px; overflow: hidden; }
 .barlist-bar { display: block; height: 100%; background: var(--violet); border-radius: 99px; }
 .barlist-value { text-align: right; font-weight: 700; }
@@ -143,6 +145,7 @@ td .sub { display: block; font-size: 13px; color: var(--muted); margin-top: 2px;
 .badge-paid { background: var(--teal-soft); color: var(--teal-ink); }
 .badge-pending { background: var(--yellow-soft); color: #6b4c00; }
 .badge-failed { background: var(--coral-soft); color: var(--coral-ink); }
+.badge-concession { background: var(--violet-soft); color: #3a1fb8; text-transform: none; margin-left: 8px; }
 
 /* Drawer */
 .drawer-backdrop { position: fixed; inset: 0; background: rgba(28, 20, 64, 0.45); display: flex; justify-content: flex-end; z-index: 10; }

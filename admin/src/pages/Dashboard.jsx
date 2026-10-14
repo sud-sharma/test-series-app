@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, formatInr, classLabel, modeLabel } from '../api.js';
+import { api, formatInr, typeLabel } from '../api.js';
 
 function Stat({ label, value, tone }) {
   return (
@@ -11,13 +11,13 @@ function Stat({ label, value, tone }) {
   );
 }
 
-function BarList({ title, rows }) {
+function BarList({ title, rows, empty = 'No registrations yet.' }) {
   const max = Math.max(1, ...rows.map((r) => r.value));
   return (
     <div className="card">
       <h3>{title}</h3>
       {rows.length === 0 ? (
-        <p className="muted">No paid registrations yet.</p>
+        <p className="muted">{empty}</p>
       ) : (
         <ul className="barlist">
           {rows.map((r) => (
@@ -97,11 +97,22 @@ export default function Dashboard() {
         <Stat label="Total registrations" value={stats.total} tone="plain" />
         <Stat label="Conversion to paid" value={`${conversion}%`} tone="plain" />
         <Stat label="New in last 24 hours" value={stats.last24h} tone="plain" />
+        <Link className="card stat stat-link" to="/registrations?concession=1">
+          <span className="stat-label">Concession requests to call</span>
+          <span className="stat-value">{stats.concessionPending}</span>
+        </Link>
       </div>
       <div className="grid two-col">
         <Daily rows={stats.daily} />
-        <BarList title="Paid by class" rows={stats.byClass.map((r) => ({ label: classLabel[r.classLevel] || r.classLevel, value: r.count }))} />
-        <BarList title="Paid by mode" rows={stats.byMode.map((r) => ({ label: modeLabel[r.mode] || r.mode, value: r.count }))} />
+        <BarList
+          title="Registrations by category"
+          rows={stats.byType.map((r) => ({ label: typeLabel[r.studentType] || r.studentType, value: r.count }))}
+        />
+        <BarList
+          title="Paid by category"
+          empty="No paid registrations yet."
+          rows={stats.byType.filter((r) => r.paid > 0).map((r) => ({ label: typeLabel[r.studentType] || r.studentType, value: r.paid }))}
+        />
       </div>
     </>
   );

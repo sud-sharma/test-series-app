@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, formatInr, formatDate, classLabel, modeLabel } from '../api.js';
+import { useSearchParams } from 'react-router-dom';
+import { api, formatInr, formatDate, typeLabel, isConcession } from '../api.js';
 
 const PAGE_SIZE = 20;
 
@@ -47,8 +48,13 @@ function Detail({ id, onClose, onDeleted }) {
               <dt>Name</dt><dd>{data.name}</dd>
               <dt>Phone</dt><dd><a href={`tel:+91${data.phone}`}>{data.phone}</a></dd>
               <dt>Email</dt><dd><a href={`mailto:${data.email}`}>{data.email}</a></dd>
-              <dt>Class</dt><dd>{classLabel[data.classLevel]}</dd>
-              <dt>Mode</dt><dd>{modeLabel[data.mode]}</dd>
+              <dt>Category</dt>
+              <dd>
+                {typeLabel[data.studentType]}
+                {isConcession(data.studentType) && data.status !== 'paid' && (
+                  <span className="badge badge-concession">Call to confirm concession fee</span>
+                )}
+              </dd>
               <dt>City</dt><dd>{data.city || '—'}</dd>
               <dt>Status</dt><dd><StatusBadge status={data.status} /></dd>
               <dt>Fee</dt><dd>{formatInr(data.amountPaise)}</dd>
@@ -85,7 +91,12 @@ function Detail({ id, onClose, onDeleted }) {
 }
 
 export default function Registrations() {
-  const [filters, setFilters] = useState({ search: '', status: '', classLevel: '', mode: '' });
+  const [params] = useSearchParams();
+  const [filters, setFilters] = useState(() =>
+    params.get('concession')
+      ? { search: '', status: 'pending', studentType: 'concession' }
+      : { search: '', status: '', studentType: '' }
+  );
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [result, setResult] = useState({ data: [], total: 0 });
@@ -157,20 +168,14 @@ export default function Registrations() {
           </select>
         </label>
         <label className="field">
-          Class
-          <select value={filters.classLevel} onChange={setFilter('classLevel')}>
+          Category
+          <select value={filters.studentType} onChange={setFilter('studentType')}>
             <option value="">All</option>
-            <option value="11">Class 11</option>
-            <option value="12">Class 12</option>
-            <option value="dropper">Dropper</option>
-          </select>
-        </label>
-        <label className="field">
-          Mode
-          <select value={filters.mode} onChange={setFilter('mode')}>
-            <option value="">All</option>
-            <option value="online">Online</option>
-            <option value="offline">At centre</option>
+            <option value="concession">All concession categories</option>
+            <option value="new">New student</option>
+            <option value="old_student">Old student</option>
+            <option value="repeater">Repeater</option>
+            <option value="optional_student">Optional student</option>
           </select>
         </label>
       </div>
@@ -185,8 +190,7 @@ export default function Registrations() {
                 <th>#</th>
                 <th>Student</th>
                 <th>Phone</th>
-                <th>Class</th>
-                <th>Mode</th>
+                <th>Category</th>
                 <th>City</th>
                 <th>Status</th>
                 <th>Registered</th>
@@ -201,15 +205,14 @@ export default function Registrations() {
                     <span className="sub">{r.email}</span>
                   </td>
                   <td>{r.phone}</td>
-                  <td>{classLabel[r.classLevel]}</td>
-                  <td>{modeLabel[r.mode]}</td>
+                  <td>{typeLabel[r.studentType]}</td>
                   <td>{r.city || '—'}</td>
                   <td><StatusBadge status={r.status} /></td>
                   <td>{formatDate(r.createdAt)}</td>
                 </tr>
               ))}
               {!loading && result.data.length === 0 && (
-                <tr><td colSpan={8} className="empty">No registrations match these filters.</td></tr>
+                <tr><td colSpan={7} className="empty">No registrations match these filters.</td></tr>
               )}
             </tbody>
           </table>

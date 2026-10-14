@@ -8,7 +8,7 @@ process.env.RAZORPAY_KEY_ID ||= 'rzp_test_dummy';
 process.env.RAZORPAY_KEY_SECRET ||= 'key_secret';
 process.env.RAZORPAY_WEBHOOK_SECRET ||= 'hook_secret';
 process.env.JWT_SECRET ||= 'jwt';
-process.env.COURSE_FEE_INR ||= '4999';
+process.env.COURSE_FEE_INR ||= '7355';
 
 const { verifyPaymentSignature, verifyWebhookSignature } = await import('../src/razorpay.js');
 

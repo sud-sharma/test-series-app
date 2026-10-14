@@ -1,11 +1,18 @@
-# Test Series: Registrations, Razorpay & Admin Panel
+# Geography (Optional) 500+ Video Programme: Landing Page, Payments & Admin Panel
 
 ```
 test-series-app/
+├── landing/   Landing page with registration form and Razorpay Checkout
 ├── backend/   Node.js + Express API, MySQL, Razorpay orders/verification/webhook
-├── admin/     React (Vite) admin panel
-└── landing/   Drop-in script that connects the landing page form to the API + Razorpay Checkout
+└── admin/     React (Vite) admin panel
 ```
+
+## Concession students
+
+Old students, repeaters and optional students choose their category on the form. They are
+registered but **not sent to online payment**, because their fee is lower than the standard
+₹7,355. They appear in the admin panel under **Concession requests to call** so the team can
+confirm their fee and collect it. New students pay the full fee online straight away.
 
 ## How payment works
 
@@ -35,6 +42,12 @@ npm run dev                 # http://localhost:4000
 Generate a JWT secret with:
 `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`
 
+`COURSE_FEE_INR` is the total charged by Razorpay, including GST (7355 by default). If you change
+the fee, also update the fee breakdown table in `landing/index.html`.
+
+Already ran `db:init` with the earlier version (class / mode fields)? Apply
+`backend/migrations/001_student_type.sql` once. Fresh installs don't need it.
+
 ### 2. Admin panel
 
 ```bash
@@ -55,9 +68,8 @@ serve `admin/dist` from any static host (Nginx, Netlify, etc.). Add that origin 
 landing/
 ├── index.html    the page
 ├── styles.css    theme and layout
-├── main.js       live fee from the API, intro video player, footer year
-├── checkout.js   registration form → API → Razorpay Checkout
-└── images/       your photos (create this folder)
+├── main.js       live fee from the API, YouTube players, footer year
+└── checkout.js   registration form → API → Razorpay Checkout
 ```
 
 Run it locally (with the backend running on :4000):
@@ -70,18 +82,19 @@ Don't open `index.html` by double-clicking: browsers send a `null` origin from `
 
 **Before going live, edit `index.html`:**
 
-- Replace every `[bracketed]` placeholder (institute name, exam, dates, address, phone, email…).
-  The fee doesn't need editing: it's loaded from `COURSE_FEE_INR` on the server.
 - Set `window.TS_API_URL` near the bottom to your API URL, and add the landing page's origin to `CORS_ORIGINS`.
-- **Intro video:** on `#intro-video`, set `data-youtube-id="VIDEO_ID"` (YouTube) **or**
-  `data-video-src="video/intro.mp4"` (self-hosted), and optionally `data-poster="images/video-poster.jpg"`.
-  The video only loads when the visitor presses play.
-- **Photos:** put them in `landing/images/` as `test-hall.jpg`, `classroom.jpg`, `faculty.jpg`,
-  `toppers.jpg` and `building.jpg` (or change the `src`). Until a photo exists, its colored placeholder shows.
+- **Testimonials:** paste a YouTube Shorts link into `data-youtube=""` on each of the four
+  `.short` cards in the testimonials section, e.g. `data-youtube="https://youtube.com/shorts/AbCdEfGhIjK"`.
+- **Mentor intro video (optional):** paste a YouTube link into `data-youtube=""` on the video in the
+  "What's included" section.
+- Any YouTube link format works (shorts, watch, youtu.be). Videos load only when the visitor presses
+  play. A card without a link is hidden, and the testimonials section and its menu link stay hidden
+  until at least one Short is added.
 
-How the form behaves: it validates instantly in the browser (same rules as the server), saves the
-registration, then swaps the submit button for **Pay ₹… now**. Payment opens Razorpay Checkout; on
-success the step indicators turn green and the student sees a confirmation.
+How the form behaves: it validates instantly in the browser (same rules as the server) and saves the
+registration. New students then get a **Pay ₹7,355 now** button that opens Razorpay Checkout; on
+success the step indicators turn green. Concession categories get a message that the team will call
+them to confirm their fee.
 
 ### 4. Razorpay webhook
 
@@ -104,7 +117,7 @@ To test webhooks locally, expose port 4000 with a tunnel such as ngrok or cloudf
 | POST | `/api/webhooks/razorpay` | signature | Razorpay events |
 | POST | `/api/admin/login` | – | Returns a JWT |
 | GET | `/api/admin/stats` | JWT | Dashboard numbers |
-| GET | `/api/admin/registrations` | JWT | List with `search`, `status`, `classLevel`, `mode`, `page`, `limit` |
+| GET | `/api/admin/registrations` | JWT | List with `search`, `status`, `studentType` (or `concession`), `page`, `limit` |
 | GET | `/api/admin/registrations/export.csv` | JWT | CSV download with the same filters |
 | GET | `/api/admin/registrations/:id` | JWT | One registration and its payment attempts |
 | DELETE | `/api/admin/registrations/:id` | JWT | Delete an unpaid registration |
@@ -112,8 +125,9 @@ To test webhooks locally, expose port 4000 with a tunnel such as ngrok or cloudf
 ## Admin panel features
 
 - Sign in with email and password (JWT, login rate-limited)
-- Dashboard: revenue, paid / pending / failed counts, conversion, last-14-days chart, paid by class and mode
-- Registrations: search, filter by status / class / mode, pagination, CSV export
+- Dashboard: revenue, paid / pending / failed counts, conversion, last-14-days chart, registrations
+  and payments by student category, and a count of concession students waiting for a call
+- Registrations: search, filter by status / category (or all concession categories), pagination, CSV export
 - Detail drawer with every payment attempt (order ID, payment ID, method, failure reason)
 
 ## Security notes

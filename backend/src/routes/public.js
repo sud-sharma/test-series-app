@@ -16,8 +16,9 @@ const registrationSchema = z.object({
     .transform((s) => s.replace(/[\s-]/g, '').replace(/^(\+91|0)/, ''))
     .refine((s) => /^[6-9]\d{9}$/.test(s), 'Please enter a valid 10-digit mobile number'),
   email: z.string().trim().toLowerCase().email('Please enter a valid email address').max(190),
-  classLevel: z.enum(['11', '12', 'dropper'], { message: 'Please select your class' }),
-  mode: z.enum(['online', 'offline'], { message: 'Please select a mode' }),
+  studentType: z.enum(['new', 'old_student', 'repeater', 'optional_student'], {
+    message: 'Please select your category',
+  }),
   city: z.string().trim().max(100).optional().or(z.literal('')),
 });
 
@@ -34,11 +35,11 @@ router.get('/course', (req, res) => {
 // Step 1: save the registration form
 router.post('/registrations', validate(registrationSchema), async (req, res, next) => {
   try {
-    const { name, phone, email, classLevel, mode, city } = req.valid.body;
+    const { name, phone, email, studentType, city } = req.valid.body;
     const [result] = await pool.query(
-      `INSERT INTO registrations (name, phone, email, class_level, mode, city, amount_paise)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [name, phone, email, classLevel, mode, city || null, config.course.feePaise]
+      `INSERT INTO registrations (name, phone, email, student_type, city, amount_paise)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [name, phone, email, studentType, city || null, config.course.feePaise]
     );
     res.status(201).json({
       registrationId: result.insertId,
