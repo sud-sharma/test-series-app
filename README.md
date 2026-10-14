@@ -83,12 +83,12 @@ Don't open `index.html` by double-clicking: browsers send a `null` origin from `
 **Before going live, edit `index.html`:**
 
 - Set `window.TS_API_URL` near the bottom to your API URL, and add the landing page's origin to `CORS_ORIGINS`.
-- **Testimonials:** paste a YouTube Shorts link into `data-youtube=""` on each of the four
-  `.short` cards in the testimonials section, e.g. `data-youtube="https://youtube.com/shorts/AbCdEfGhIjK"`.
+- **Himanshu Sir videos:** paste a YouTube Shorts link into `data-youtube=""` on each of the four
+  `.short` cards in the videos section (`#videos`), e.g. `data-youtube="https://youtube.com/shorts/AbCdEfGhIjK"`.
 - **Mentor intro video (optional):** paste a YouTube link into `data-youtube=""` on the video in the
   "What's included" section.
 - Any YouTube link format works (shorts, watch, youtu.be). Videos load only when the visitor presses
-  play. A card without a link is hidden, and the testimonials section and its menu link stay hidden
+  play. A card without a link is hidden, and the videos section and its menu link stay hidden
   until at least one Short is added.
 
 How the form behaves: it validates instantly in the browser (same rules as the server) and saves the
