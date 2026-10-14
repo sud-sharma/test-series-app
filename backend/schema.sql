@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS registrations (
   city         VARCHAR(100) NULL,
   status       ENUM('pending','paid','failed') NOT NULL DEFAULT 'pending',
   amount_paise INT UNSIGNED NOT NULL,
+  -- SHA-256 of the secret token given to the student's browser; required to start payment
+  access_token_hash CHAR(64) NULL,
   paid_at      DATETIME     NULL,
   created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

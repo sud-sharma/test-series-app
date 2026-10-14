@@ -6,10 +6,14 @@
   var year = document.getElementById('year');
   if (year) year.textContent = new Date().getFullYear();
 
-  // Fee: show the amount configured on the server (COURSE_FEE_INR) so the page and
-  // the Razorpay charge always match. The number written in the HTML is the fallback.
-  fetch(API + '/course')
+  // Course info from the API: the fee (COURSE_FEE_INR, so the page and the Razorpay charge
+  // always match; the number written in the HTML is the fallback) and the CAPTCHA site key.
+  // Shared with checkout.js through window.TS_COURSE.
+  window.TS_COURSE = fetch(API + '/course')
     .then(function (r) { return r.ok ? r.json() : null; })
+    .catch(function () { return null; });
+
+  window.TS_COURSE
     .then(function (course) {
       if (!course || !course.feePaise) return;
       var fee = new Intl.NumberFormat('en-IN', {

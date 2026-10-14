@@ -45,8 +45,9 @@ Generate a JWT secret with:
 `COURSE_FEE_INR` is the total charged by Razorpay, including GST (7355 by default). If you change
 the fee, also update the fee breakdown table in `landing/index.html`.
 
-Already ran `db:init` with the earlier version (class / mode fields)? Apply
-`backend/migrations/001_student_type.sql` once. Fresh installs don't need it.
+Created your database with an earlier version? Apply the migrations you haven't run yet, once each:
+`backend/migrations/001_student_type.sql` (class / mode → student category) and
+`backend/migrations/002_access_token.sql` (security update). Fresh installs don't need them.
 
 ### 2. Admin panel
 
@@ -68,8 +69,9 @@ serve `admin/dist` from any static host (Nginx, Netlify, etc.). Add that origin 
 landing/
 ├── index.html    the page
 ├── styles.css    theme and layout
+├── config.js     API address (window.TS_API_URL)
 ├── main.js       live fee from the API, YouTube players, footer year
-└── checkout.js   registration form → API → Razorpay Checkout
+└── checkout.js   registration form → CAPTCHA → API → Razorpay Checkout
 ```
 
 Run it locally (with the backend running on :4000):
@@ -80,9 +82,10 @@ npx serve landing -l 8080     # http://localhost:8080  (already in CORS_ORIGINS)
 
 Don't open `index.html` by double-clicking: browsers send a `null` origin from `file://`, which CORS rejects.
 
-**Before going live, edit `index.html`:**
+**Before going live:**
 
-- Set `window.TS_API_URL` near the bottom to your API URL, and add the landing page's origin to `CORS_ORIGINS`.
+- Set `window.TS_API_URL` in `landing/config.js` to your API URL, and add the landing page's origin to `CORS_ORIGINS`.
+- Work through the go-live checklist in [SECURITY.md](SECURITY.md) (HTTPS, CAPTCHA keys, admin lock-down).
 - **Himanshu Sir videos:** paste a YouTube Shorts link into `data-youtube=""` on each of the four
   `.short` cards in the videos section (`#videos`), e.g. `data-youtube="https://youtube.com/shorts/AbCdEfGhIjK"`.
 - **Mentor intro video (optional):** paste a YouTube link into `data-youtube=""` on the video in the
@@ -110,9 +113,9 @@ To test webhooks locally, expose port 4000 with a tunnel such as ngrok or cloudf
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| GET | `/api/course` | – | Course name, fee and public Razorpay key |
-| POST | `/api/registrations` | – | Save the registration form |
-| POST | `/api/payments/order` | – | Create a Razorpay order for a registration |
+| GET | `/api/course` | – | Course name, fee, public Razorpay key and Turnstile site key |
+| POST | `/api/registrations` | CAPTCHA | Save the registration form; returns `registrationId` and a secret `registrationToken` |
+| POST | `/api/payments/order` | token | Create a Razorpay order; needs `registrationId` + `registrationToken` |
 | POST | `/api/payments/verify` | – | Verify Checkout signature, mark paid |
 | POST | `/api/webhooks/razorpay` | signature | Razorpay events |
 | POST | `/api/admin/login` | – | Returns a JWT |
@@ -130,17 +133,14 @@ To test webhooks locally, expose port 4000 with a tunnel such as ngrok or cloudf
 - Registrations: search, filter by status / category (or all concession categories), pagination, CSV export
 - Detail drawer with every payment attempt (order ID, payment ID, method, failure reason)
 
-## Security notes
+## Security
 
-- Fee comes from server config; the client can't change the amount.
-- Payment and webhook signatures are checked with HMAC-SHA256 and constant-time comparison.
-- All SQL uses parameterised queries; input is validated with zod.
-- Helmet headers, CORS allow-list, rate limits on public endpoints and admin login.
-- CSV export escapes cells to prevent spreadsheet formula injection.
-- Paid registrations can't be deleted from the admin panel.
+See [SECURITY.md](SECURITY.md) for what's protected and the go-live checklist, and
+[deploy/nginx.example.conf](deploy/nginx.example.conf) for the production web-server setup
+(HTTPS, Content Security Policy, rate limits, admin IP allow-list).
 
 ## Tests
 
 ```bash
-cd backend && npm test      # signature verification tests
+cd backend && npm test      # signature, token and CAPTCHA verification tests
 ```

@@ -253,6 +253,14 @@
             </label>
           </div>
 
+          <!-- Honeypot: hidden from people, often filled in by bots. Leave it empty. -->
+          <div class="hp" aria-hidden="true">
+            <label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+          </div>
+
+          <!-- Cloudflare Turnstile security check (appears when the API has a site key) -->
+          <div id="captcha" class="captcha" hidden></div>
+
           <p id="form-message" class="form-message" role="status" aria-live="polite" hidden></p>
 
           <button id="register-btn" type="submit" class="btn btn-ink btn-block">Register now</button>
@@ -280,8 +288,8 @@
     </div>
   </footer>
 
-  <!-- API location: the Node backend. Change for production, e.g. https://api.yourdomain.in -->
-  <script>window.TS_API_URL = 'http://localhost:4000';</script>
+  <!-- API location is set in config.js (kept out of the HTML so the page can use a strict CSP) -->
+  <script src="config.js"></script>
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   <script src="main.js"></script>
   <script src="checkout.js"></script>

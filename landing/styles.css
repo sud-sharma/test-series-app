@@ -248,6 +248,9 @@ input, select, button { font: inherit; }
 .form-message[data-kind="success"] { background: var(--teal-soft); color: var(--teal-ink); }
 .form-message[data-kind="info"] { background: var(--yellow-soft); color: #5a4100; }
 .fine-print { font-size: 13px; color: #5f5884; }
+/* Honeypot: kept off-screen (not display:none, which some bots detect) */
+.hp { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+.captcha { min-height: 65px; }
 
 /* Footer */
 .site-footer { background: var(--ink); color: #cfc8f2; }
