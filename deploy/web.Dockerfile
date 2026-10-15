@@ -12,7 +12,7 @@ ENV VITE_API_URL=
 RUN npm run build
 
 # 2. Caddy with the static files
-FROM caddy:2.10-alpine
+FROM caddy:2.11-alpine
 COPY deploy/Caddyfile /etc/caddy/Caddyfile
 COPY landing/ /srv/landing/
 COPY --from=admin /admin/dist/ /srv/admin/

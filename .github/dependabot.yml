@@ -1,18 +1,43 @@
 # Weekly pull requests for dependency and base-image updates (security fixes included).
-# Each PR runs the CI tests; merge it to deploy.
+# Each PR runs the CI tests; merging it to main deploys it.
+#
+# Only minor and patch updates are proposed, grouped into one PR per folder. Major versions
+# (React 19, Express 5, Node 25 …) can contain breaking changes, so upgrade those deliberately.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /backend
     schedule: { interval: weekly }
-    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      backend-minor-and-patch:
+        update-types: [minor, patch]
+
   - package-ecosystem: npm
     directory: /admin
     schedule: { interval: weekly }
-    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      admin-minor-and-patch:
+        update-types: [minor, patch]
+
   - package-ecosystem: docker
     directories: [/backend, /deploy]
     schedule: { interval: weekly }
+    ignore:
+      # Stay on Node's long-term-support line; move to the next LTS on purpose
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
+      - dependency-name: mysql
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: monthly }
+    groups:
+      github-actions:
+        patterns: ["*"]
