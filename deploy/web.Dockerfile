@@ -3,7 +3,7 @@
 # Build from the repository root:  docker build -f deploy/web.Dockerfile .
 
 # 1. Build the admin panel (React). It calls the API on its own domain (/api), so no URL is baked in.
-FROM node:22-alpine AS admin
+FROM node:25-alpine AS admin
 WORKDIR /admin
 COPY admin/package.json admin/package-lock.json ./
 RUN npm ci
