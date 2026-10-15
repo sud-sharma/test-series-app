@@ -1,0 +1,77 @@
+# Run the whole app locally with Docker, built from this repository:
+#
+#   docker compose up --build
+#
+#   Landing page  http://localhost:8080
+#   Admin panel   http://localhost:8081
+#
+# Create an admin user (once):
+#   docker compose exec api node scripts/create-admin.js admin@example.com 'StrongPass123' "Admin"
+#
+# Razorpay test keys: put them in a .env file next to this one (git-ignored), e.g.
+#   RAZORPAY_KEY_ID=rzp_test_...
+#   RAZORPAY_KEY_SECRET=...
+# Production uses deploy/compose.prod.yaml instead (see deploy/DEPLOY.md).
+
+name: geo-app-local
+
+services:
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: geo_optional
+      MYSQL_USER: app
+      MYSQL_PASSWORD: local_app_password
+      MYSQL_ROOT_PASSWORD: local_root_password
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./backend/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      - "127.0.0.1:3307:3306"   # optional: connect a GUI on localhost:3307
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -plocal_root_password --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      TRUST_PROXY: 1
+      DB_HOST: db
+      DB_NAME: geo_optional
+      DB_USER: app
+      DB_PASSWORD: local_app_password
+      CORS_ORIGINS: http://localhost:8080,http://localhost:8081
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-rzp_test_replace_me}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-replace_me}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+      COURSE_FEE_INR: 7355
+      COURSE_NAME: Geography (Optional) 500+ Video Programme
+      JWT_SECRET: local_development_only_secret_change_in_production
+      # Cloudflare's test keys: the CAPTCHA always passes locally
+      TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+      TURNSTILE_SECRET_KEY: 1x0000000000000000000000000000000AA
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/web.Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      LANDING_SITE: http://localhost:8080
+      ADMIN_SITE: http://localhost:8081
+      ACME_EMAIL: dev@localhost.test
+      ADMIN_ALLOWED_IPS: 0.0.0.0/0 ::/0
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+
+volumes:
+  db-data:

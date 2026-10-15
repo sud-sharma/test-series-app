@@ -1,0 +1,86 @@
+# Production stack. The CI/CD pipeline copies this file to the server as /opt/geo-app/compose.yaml
+# (with schema.sql next to it) and runs it with the images it just built.
+# All settings come from /opt/geo-app/.env on the server (template: deploy/production.env.example).
+
+name: geo-app
+
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-geo_optional}
+      MYSQL_USER: ${DB_USER:-app}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/mysql
+      # Creates the tables the first time the database starts (empty volume only)
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks: [backend]
+    # No ports: MySQL is never reachable from the internet
+
+  api:
+    image: ghcr.io/${GHCR_OWNER:-sud-sharma}/geo-app-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      TRUST_PROXY: 1
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-geo_optional}
+      DB_USER: ${DB_USER:-app}
+      DB_PASSWORD: ${DB_PASSWORD}
+      CORS_ORIGINS: https://${LANDING_DOMAIN:?Set LANDING_DOMAIN in .env},https://${ADMIN_DOMAIN:?Set ADMIN_DOMAIN in .env}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:?Set RAZORPAY_KEY_ID in .env}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:?Set RAZORPAY_KEY_SECRET in .env}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+      COURSE_FEE_INR: ${COURSE_FEE_INR:-7355}
+      COURSE_NAME: ${COURSE_NAME:-Geography (Optional) 500+ Video Programme}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
+      TURNSTILE_HOSTNAMES: ${LANDING_DOMAIN}
+    networks: [backend, frontend]
+    # No ports: only Caddy talks to the API
+
+  web:
+    image: ghcr.io/${GHCR_OWNER:-sud-sharma}/geo-app-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      LANDING_SITE: ${LANDING_DOMAIN}
+      ADMIN_SITE: ${ADMIN_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in .env}
+      ADMIN_ALLOWED_IPS: ${ADMIN_ALLOWED_IPS:-0.0.0.0/0 ::/0}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy-data:/data      # HTTPS certificates; keep this volume
+      - caddy-config:/config
+    networks: [frontend]
+
+networks:
+  backend:
+    internal: true   # db + api only, no internet access from MySQL
+  frontend:
+
+volumes:
+  db-data:
+  caddy-data:
+  caddy-config:

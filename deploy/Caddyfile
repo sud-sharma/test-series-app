@@ -1,0 +1,104 @@
+# Caddy web server for the Docker setup.
+# Values in {$...} come from environment variables set in the compose file:
+#   LANDING_SITE  e.g. geo.example.in          (local: http://localhost:8080)
+#   ADMIN_SITE    e.g. admin.example.in        (local: http://localhost:8081)
+#   ACME_EMAIL    email for Let's Encrypt certificate notices
+#   ADMIN_ALLOWED_IPS  space-separated IPs/ranges allowed to open the admin panel
+# Caddy gets and renews HTTPS certificates automatically for real domain names.
+{
+	email {$ACME_EMAIL}
+	# If you put Cloudflare's proxy in front, uncomment so client IPs are read correctly:
+	# servers {
+	# 	trusted_proxies static 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22
+	# 	client_ip_headers CF-Connecting-IP
+	# }
+}
+
+(common_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		-Server
+	}
+}
+
+(api_proxy) {
+	handle /api/* {
+		request_body {
+			max_size 64KB
+		}
+		reverse_proxy api:4000
+	}
+}
+
+# ---------------------------------------------------------------- Landing page
+{$LANDING_SITE} {
+	import common_headers
+	header {
+		# Only the services the page uses may load code or frames:
+		# Razorpay (checkout), Cloudflare Turnstile (CAPTCHA), YouTube (videos), Google Fonts.
+		Content-Security-Policy "default-src 'self'; script-src 'self' https://*.razorpay.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://i.ytimg.com https://*.razorpay.com; frame-src https://*.razorpay.com https://www.youtube-nocookie.com https://challenges.cloudflare.com; connect-src 'self' https://*.razorpay.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	}
+	encode zstd gzip
+
+	# The admin API is only reachable through the admin domain
+	handle /api/admin/* {
+		respond 404
+	}
+	import api_proxy
+
+	# The API is on this same domain, so the page calls /api directly
+	handle /config.js {
+		header Content-Type "text/javascript; charset=utf-8"
+		header Cache-Control "no-cache"
+		respond "window.TS_API_URL = '';"
+	}
+
+	handle {
+		@hidden path */.*
+		respond @hidden 404
+		@assets path *.css *.js *.png *.jpg *.jpeg *.webp *.svg
+		header @assets Cache-Control "public, max-age=604800"
+		root * /srv/landing
+		file_server
+	}
+}
+
+# ---------------------------------------------------------------- Admin panel
+{$ADMIN_SITE} {
+	import common_headers
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+		Referrer-Policy "no-referrer"
+		X-Robots-Tag "noindex, nofollow"
+	}
+	encode zstd gzip
+
+	# Only IPs in ADMIN_ALLOWED_IPS reach the admin panel or its API; everyone else gets 403.
+	# (Every handler below requires the allowed IP; the final catch-all refuses the rest.)
+	@allowed_api {
+		client_ip {$ADMIN_ALLOWED_IPS}
+		path /api/*
+	}
+	@allowed client_ip {$ADMIN_ALLOWED_IPS}
+
+	handle @allowed_api {
+		request_body {
+			max_size 64KB
+		}
+		reverse_proxy api:4000
+	}
+
+	handle @allowed {
+		root * /srv/admin
+		try_files {path} /index.html
+		file_server
+	}
+
+	handle {
+		respond "Forbidden" 403
+	}
+}

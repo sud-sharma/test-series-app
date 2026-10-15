@@ -1,0 +1,18 @@
+# Weekly pull requests for dependency and base-image updates (security fixes included).
+# Each PR runs the CI tests; merge it to deploy.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /backend
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+  - package-ecosystem: npm
+    directory: /admin
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+  - package-ecosystem: docker
+    directories: [/backend, /deploy]
+    schedule: { interval: weekly }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }

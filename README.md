@@ -133,6 +133,12 @@ To test webhooks locally, expose port 4000 with a tunnel such as ngrok or cloudf
 - Registrations: search, filter by status / category (or all concession categories), pagination, CSV export
 - Detail drawer with every payment attempt (order ID, payment ID, method, failure reason)
 
+## Deployment
+
+Production runs in Docker (Caddy + Node API + MySQL) and deploys automatically from GitHub Actions on
+every push to `main`. Step-by-step setup: [deploy/DEPLOY.md](deploy/DEPLOY.md).
+To run the full Docker stack on your computer: `docker compose up --build`.
+
 ## Security
 
 See [SECURITY.md](SECURITY.md) for what's protected and the go-live checklist, and

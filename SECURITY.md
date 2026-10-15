@@ -21,6 +21,11 @@ How the landing page, API and admin panel are protected, and what you must set u
 
 ## Go-live checklist
 
+**Deploying with Docker (recommended, see [deploy/DEPLOY.md](deploy/DEPLOY.md))?** Items 1, 3, 6 and 7 are
+handled for you: Caddy provides HTTPS and the security headers, `TRUST_PROXY` is set, the admin panel is
+limited to `ADMIN_ALLOWED_IPS`, and MySQL runs as a non-root user that isn't exposed. You still need
+items 2, 4, 5, 8, 9 and 10. The nginx notes below are for installing without Docker.
+
 1. **HTTPS everywhere.** Use `deploy/nginx.example.conf` and `certbot`. Never serve the form over plain HTTP.
 2. **Turn on the CAPTCHA.** Cloudflare dashboard → Turnstile → Add widget (free). Hostname: your landing
    domain. Put the keys in `backend/.env` as `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, and set

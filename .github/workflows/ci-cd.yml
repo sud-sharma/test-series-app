@@ -1,0 +1,175 @@
+# CI/CD: every push to main is tested, built into Docker images, pushed to GitHub Container
+# Registry (ghcr.io) and deployed to the production server over SSH.
+# Pull requests are only tested. Setup instructions: deploy/DEPLOY.md
+
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            admin/package-lock.json
+
+      - name: Backend tests
+        working-directory: backend
+        run: |
+          npm ci
+          npm test
+
+      - name: Backend security audit (production dependencies)
+        working-directory: backend
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Build admin panel
+        working-directory: admin
+        run: |
+          npm ci
+          npm run build
+
+      - name: Check landing page scripts
+        run: for f in landing/*.js; do node --check "$f"; done
+
+  build:
+    name: Build & push images
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      owner: ${{ steps.meta.outputs.owner }}
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Image names
+        id: meta
+        run: |
+          echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+          echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ghcr.io/${{ steps.meta.outputs.owner }}/geo-app-api:${{ steps.meta.outputs.tag }}
+            ghcr.io/${{ steps.meta.outputs.owner }}/geo-app-api:latest
+          labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Build & push web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/web.Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ steps.meta.outputs.owner }}/geo-app-web:${{ steps.meta.outputs.tag }}
+            ghcr.io/${{ steps.meta.outputs.owner }}/geo-app-web:latest
+          labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+  deploy:
+    name: Deploy to production
+    needs: build
+    # Turned on by setting the repository variable DEPLOY_ENABLED=true once the server is ready
+    if: github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Add required reviewers to this environment in GitHub to approve each deploy manually
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: read
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PORT: ${{ vars.SSH_PORT || '22' }}
+      DEPLOY_DIR: ${{ vars.DEPLOY_DIR || '/opt/geo-app' }}
+      IMAGE_TAG: ${{ needs.build.outputs.tag }}
+      GHCR_OWNER: ${{ needs.build.outputs.owner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy_key ~/.ssh/known_hosts
+
+      - name: Copy compose file and schema to the server
+        run: |
+          scp -i ~/.ssh/deploy_key -P "$SSH_PORT" deploy/compose.prod.yaml "$SSH_USER@$SSH_HOST:$DEPLOY_DIR/compose.yaml"
+          scp -i ~/.ssh/deploy_key -P "$SSH_PORT" backend/schema.sql "$SSH_USER@$SSH_HOST:$DEPLOY_DIR/schema.sql"
+
+      - name: Pull new images and restart
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -s <<EOF
+          set -euo pipefail
+          cd "$DEPLOY_DIR"
+          test -f .env || { echo "Missing $DEPLOY_DIR/.env (see deploy/DEPLOY.md)"; exit 1; }
+          set_var() { grep -q "^\$1=" .env && sed -i "s|^\$1=.*|\$1=\$2|" .env || echo "\$1=\$2" >> .env; }
+          set_var IMAGE_TAG "$IMAGE_TAG"
+          set_var GHCR_OWNER "$GHCR_OWNER"
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+          docker compose pull api web
+          docker compose up -d --remove-orphans
+          docker logout ghcr.io
+          docker image prune -f
+          docker compose ps
+          EOF
+
+      - name: Health check
+        env:
+          LANDING_DOMAIN: ${{ vars.LANDING_DOMAIN }}
+        run: |
+          if [ -z "$LANDING_DOMAIN" ]; then echo "Set the LANDING_DOMAIN variable to enable the health check"; exit 0; fi
+          for i in $(seq 1 20); do
+            if curl -fsS "https://$LANDING_DOMAIN/api/health"; then echo; echo "Deployed $IMAGE_TAG"; exit 0; fi
+            sleep 6
+          done
+          echo "Health check failed after deploy"; exit 1
